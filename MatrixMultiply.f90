@@ -1,20 +1,21 @@
 !Very rudimentary Fox Matrix Multiplication program
 !@author Samuel Shadwell
 !
-!KNOWN ISSUES: Only works with square matrices
-!   Requires more than 1 MPI process
+!KNOWN ISSUES: Only works with 3x3 matrices
+!   Limited modularity
 
 
 PROGRAM MatrixMultiply
-implicit none 
+IMPLICIT NONE 
 INCLUDE 'mpif.h'
 
 !Variable declarations
-INTEGER                                 :: ierr, commSize, rank                 !MPI variables
-REAL, ALLOCATABLE, DIMENSION(:,:)       :: arayA, arayB, arayC                  !Matrices
+INTEGER                                 :: ierr, commSize, rank, r1, r2, r3, c1, c2, c3 !MPI variables
+REAL, ALLOCATABLE, DIMENSION(:,:)       :: arayA, arayB, arayC                          !Matrices
 INTEGER                                 :: arayLen, nodeRow, nodeCol
 REAL                                    :: nodeAVal, nodeBVal, workA, workB
 REAL                                    :: workC
+INTEGER, PARAMETER                      :: n = 3 !Size of matrices to be multiplied (n by n)
 
 !Initialize MPI Environment
 CALL MPI_INIT(ierr)
@@ -24,7 +25,7 @@ CALL MPI_COMM_RANK (MPI_COMM_WORLD, rank, ierr)
 !Allocates arrays
 IF (rank .EQ. 0) THEN
 
-    arayLen = 1
+    arayLen = n
     ALLOCATE(arayA(arayLen, arayLen))
     ALLOCATE(arayB(arayLen, arayLen))
     ALLOCATE(arayC(arayLen, arayLen))
@@ -57,13 +58,62 @@ END PROGRAM MatrixMultiply
 
 
 
+!============== SUBROUTINE establishGroups ==========
+!   Creates MPI groups to allow broadcasting of 
+!	matrix values across the appropriate rows
+!	and columns
+!
+!   NOTE: THIS IS NOT MODULAR DUE TO LIMITATIONS OF
+!   MYSELF AND FORTRAN
+!====================================================
+SUBROUTINE establishGroups(ierr, n, r1Grp, r2Grp, r3Grp, c1Grp, c2Grp, c3Grp)
+IMPLICIT NONE
+INCLUDE 'mpif.h'
+
+INTEGER, INTENT(OUT)                               :: r1Grp, r2Grp, r3Grp
+INTEGER, INTENT(OUT)                               :: c1Grp, c2Grp, c3Grp !Groups to be established
+INTEGER, INTENT(IN)                                :: n
+INTEGER, DIMENSION(3)                              :: r1Ranks, r2Ranks, r3Ranks
+INTEGER, DIMENSION(3)                              :: c1Ranks, c2Ranks, c3Ranks
+INTEGER                                            :: wGroup, i, ierr
+
+CALL MPI_Comm_group(MPI_COMM_WORLD, wGroup)
+
+!Establishes which ranks belong to each row and column, placing the
+! indeces into *Ranks arrays
+DO i = 0, n-1
+
+    r1Ranks(i+1) = i
+    r2Ranks(i+1) = i + n
+    r2Ranks(i+1) = i + 2*n
+
+    c1Ranks(i+1) = i*n
+    c2Ranks(i+1) = i*n + 1
+    c3Ranks(i+1) = i*n + 2
+
+ENDDO
+
+!Creates 6 (n*2) groups from the given ranks
+CALL MPI_Group_incl(wGroup, n, r1Ranks, r1Grp, ierr)
+CALL MPI_Group_incl(wGroup, n, r2Ranks, r2Grp, ierr)
+CALL MPI_Group_incl(wGroup, n, r3Ranks, r3Grp, ierr)
+CALL MPI_Group_incl(wGroup, n, c1Ranks, c1Grp, ierr)
+CALL MPI_Group_incl(wGroup, n, c2Ranks, c2Grp, ierr)
+CALL MPI_Group_incl(wGroup, n, c3Ranks, c3Grp, ierr) 
+
+
+END SUBROUTINE establishGroups
+
+
+
 !============== SUBROUTINE SetUpArrays ===============
 !   Puts entire array on head node (0), and distributes single elements to 
 !   all other nodes. Also sets size of arayA, B, and C to 1 for all
 !   MPI processes other than the head node.
+!====================================================
 SUBROUTINE setUpArrays(ierr, commSize, rank, arayA, arayB, arayC, nodeAVal, nodeBVal, workA, workB, workC, arayLen)
-implicit none 
-include 'mpif.h'
+IMPLICIT NONE 
+INCLUDE 'mpif.h'
 INTEGER                                             :: counter,ierr, commSize, rank, arayLen, mpiStatus(MPI_STATUS_SIZE)
 REAL, DIMENSION(arayLen,arayLen)                    :: arayA, arayB, arayC
 REAL                                                :: nodeAVal, nodeBVal
@@ -111,6 +161,10 @@ END SUBROUTINE setUpArrays
 
 
 
+!========================SUBROUTINE performCalculations==========
+!   Relatively simple subroutine which performs the value addition
+!   and multiplication (C = C + AxB)
+!================================================================
 SUBROUTINE performCalculations (arayA, arayB, arayC, rank)
 
 REAL, ALLOCATABLE, DIMENSION(:,:)       :: arayA, arayB, arayC
