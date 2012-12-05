@@ -43,7 +43,7 @@ CALL setUpArrays(ierr, commSize, worldRank, arayA, arayB, arayC, nodeAVal, nodeB
 CALL establishGroups(ierr, arayLen, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm)
 
 !Performs calculations
-CALL performCalculations(ierr, workA, workB, workC, arayLen, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm)
+CALL performCalculations(ierr, workA, workB, workC, arayLen, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm, nodeAVal, nodeBVal)
 
 !Parallel Code Ends
 CALL MPI_FINALIZE (ierr)
@@ -75,7 +75,7 @@ INTEGER                                            :: c1Grp, c2Grp, c3Grp      !
 INTEGER, INTENT(IN)                                :: arayLen
 INTEGER, DIMENSION(3)                              :: r1Ranks, r2Ranks, r3Ranks
 INTEGER, DIMENSION(3)                              :: c1Ranks, c2Ranks, c3Ranks
-INTEGER                                            :: wGroup, i, ierr
+INTEGER                                            :: wGroup, i, ierr, testSize
 
 CALL MPI_Comm_group(MPI_COMM_WORLD, wGroup)
 
@@ -85,13 +85,18 @@ DO i = 0, arayLen-1
 
     r1Ranks(i+1) = i
     r2Ranks(i+1) = i + arayLen
-    r2Ranks(i+1) = i + 2*arayLen
+    r3Ranks(i+1) = i + 2*arayLen
 
     c1Ranks(i+1) = i*arayLen
     c2Ranks(i+1) = i*arayLen + 1
     c3Ranks(i+1) = i*arayLen + 2
 
 ENDDO
+
+IF(ierr .NE. MPI_SUCCESS) THEN
+    PRINT*, "error before group creation"
+    STOP
+ENDIF
 
 !Creates 6 (arayLen*2) groups from the given worldRanks
 CALL MPI_Group_incl(wGroup, arayLen, r1Ranks, r1Grp, ierr)
@@ -100,6 +105,10 @@ CALL MPI_Group_incl(wGroup, arayLen, r3Ranks, r3Grp, ierr)
 CALL MPI_Group_incl(wGroup, arayLen, c1Ranks, c1Grp, ierr)
 CALL MPI_Group_incl(wGroup, arayLen, c2Ranks, c2Grp, ierr)
 CALL MPI_Group_incl(wGroup, arayLen, c3Ranks, c3Grp, ierr) 
+IF (ierr .NE. MPI_SUCCESS ) THEN
+    PRINT*, "group creation error"
+    STOP
+ENDIF
 
 !Creates communicators from the given groups
 CALL MPI_Comm_create(MPI_COMM_WORLD, r1Grp, r1Comm , ierr)
@@ -108,6 +117,11 @@ CALL MPI_Comm_create(MPI_COMM_WORLD, r3Grp, r3Comm , ierr)
 CALL MPI_Comm_create(MPI_COMM_WORLD, c1Grp, c1Comm , ierr)
 CALL MPI_Comm_create(MPI_COMM_WORLD, c2Grp, c2Comm , ierr)
 CALL MPI_Comm_create(MPI_COMM_WORLD, c3Grp, c3Comm , ierr)
+IF(ierr .NE. MPI_SUCCESS) THEN
+    PRINT*, "communicator creation error"
+    STOP
+ENDIF
+
 
 END SUBROUTINE establishGroups
 
@@ -149,6 +163,9 @@ IF (worldRank .EQ. 0) THEN       ! Begin head node
                 bOut = arayB(i,j)
                 CALL MPI_SEND(aOut, 1, MPI_REAL, destinationRank, 1, MPI_COMM_WORLD, ierr)
                 CALL MPI_SEND(bOut, 1, MPI_REAL, destinationRank, 2, MPI_COMM_WORLD, ierr)
+            ELSE
+                nodeAVal = arayA(i,j)
+                nodeBVal = arayB(i,j)
             ENDIF            
             destinationRank = destinationRank + 1
         ENDDO
@@ -170,14 +187,16 @@ END SUBROUTINE setUpArrays
 !   Subroutine which controls the broadcasting of values across
 !   nodes as well as the calculating of C value
 !================================================================
-SUBROUTINE performCalculations(ierr, workA, workB, workC, arayLen, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm)
+SUBROUTINE performCalculations(ierr, workA, workB, workC, arayLen, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm, nodeAVal, nodeBVal)
 INTEGER                                            :: arayLen, i, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm, ierr
-REAL                                               :: workA, workB, workC
+REAL                                               :: workA, workB, workC, nodeAVal, nodeBVal
 
 workC = 0.0d0
 
 DO i = 0, arayLen-1
 
+    workA = nodeAVal
+    workB = nodeBVal
     CALL passValues(i, workA, workB, workC, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm, ierr)
     CALL calculate(workA, workB, workC)
 
@@ -209,12 +228,12 @@ SUBROUTINE passValues(i, workA, workB, workC, r1Comm, r2Comm, r3Comm, c1Comm, c2
 INTEGER                                            :: i, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm, ierr
 REAL                                               :: workA, workB, workC
 
-CALL MPI_Bcast(workA, 1, MPI_REAL, i, r1Commr, ierr)
-CALL MPI_Bcast(workA, 1, MPI_REAL, i, r2Commr, ierr)
-CALL MPI_Bcast(workA, 1, MPI_REAL, i, r3Commr, ierr)
+CALL MPI_Bcast(workA, 1, MPI_REAL, i, r1Comm, ierr)
+CALL MPI_Bcast(workA, 1, MPI_REAL, i, r2Comm, ierr)
+CALL MPI_Bcast(workA, 1, MPI_REAL, i, r3Comm, ierr)
 
-CALL MPI_Bcast(workB, 1, MPI_REAL, i, c1Commr, ierr)
-CALL MPI_Bcast(workB, 1, MPI_REAL, i, c2Commr, ierr)
-CALL MPI_Bcast(workB, 1, MPI_REAL, i, c3Commr, ierr)
+CALL MPI_Bcast(workB, 1, MPI_REAL, i, c1Comm, ierr)
+CALL MPI_Bcast(workB, 1, MPI_REAL, i, c2Comm, ierr)
+CALL MPI_Bcast(workB, 1, MPI_REAL, i, c3Comm, ierr)
 
 END SUBROUTINE passValues
