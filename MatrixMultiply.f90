@@ -225,15 +225,26 @@ END SUBROUTINE calculate
 !   Subroutine which passes the necessary values to the arrays
 !================================================================
 SUBROUTINE passValues(i, workA, workB, workC, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm)
-INTEGER                                            :: i, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm, ierr
+INCLUDE 'mpif.h'
+INTEGER                                            :: rank, i, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm, ierr
 REAL                                               :: workA, workB, workC
 
-CALL MPI_Bcast(workA, 1, MPI_REAL, i, r1Comm, ierr)
-CALL MPI_Bcast(workA, 1, MPI_REAL, i, r2Comm, ierr)
-CALL MPI_Bcast(workA, 1, MPI_REAL, i, r3Comm, ierr)
+CALL MPI_COMM_RANK (MPI_COMM_WORLD, rank, ierr)
 
-CALL MPI_Bcast(workB, 1, MPI_REAL, i, c1Comm, ierr)
-CALL MPI_Bcast(workB, 1, MPI_REAL, i, c2Comm, ierr)
-CALL MPI_Bcast(workB, 1, MPI_REAL, i, c3Comm, ierr)
+IF ((rank .LE. 2) .AND. (rank .GE. 0)) THEN
+    CALL MPI_Bcast(workA, 1, MPI_REAL, i, r1Comm, ierr)
+ELSEIF((rank .LE. 5) .AND. (rank .GE. 3)) THEN
+    CALL MPI_Bcast(workA, 1, MPI_REAL, i, r2Comm, ierr)
+ELSEIF((rank .LE. 8) .AND. (rank .GE. 6)) THEN
+    CALL MPI_Bcast(workA, 1, MPI_REAL, i, r3Comm, ierr)
+ENDIF
+
+IF    ((rank .EQ. 0) .OR. (rank .EQ. 3) .OR. (rank .EQ. 6)) THEN
+    CALL MPI_Bcast(workB, 1, MPI_REAL, i, c1Comm, ierr)
+ELSEIF((rank .EQ. 1) .OR. (rank .EQ. 4) .OR. (rank .EQ. 7)) THEN
+    CALL MPI_Bcast(workB, 1, MPI_REAL, i, c2Comm, ierr)
+ELSEIF((rank .EQ. 2) .OR. (rank .EQ. 5) .OR. (rank .EQ. 8)) THEN
+    CALL MPI_Bcast(workB, 1, MPI_REAL, i, c3Comm, ierr)
+ENDIF
 
 END SUBROUTINE passValues
