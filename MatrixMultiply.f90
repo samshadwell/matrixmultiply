@@ -25,18 +25,15 @@ CALL MPI_COMM_RANK (MPI_COMM_WORLD, worldRank, ierr)
 IF (worldRank .EQ. 0) THEN
 
     READ(*,*) arayLen
+!    CALL MPI_Bcast(arayLen, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
 
     ALLOCATE(arayA(arayLen, arayLen))
     ALLOCATE(arayB(arayLen, arayLen))
     ALLOCATE(arayC(arayLen, arayLen))
 
-!ELSE
-!
-!    ALLOCATE(arayA(1,1))
-!    ALLOCATE(arayB(1,1))
-!    ALLOCATE(arayC(1,1))
-
 ENDIF
+
+CALL MPI_Bcast(arayLen, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
 
 !Sets and distributes array values to various nodes
 CALL setUpArrays(ierr, commSize, worldRank, arayA, arayB, arayC, nodeAVal, nodeBVal, arayLen)
@@ -190,7 +187,8 @@ END SUBROUTINE setUpArrays
 !   nodes as well as the calculating of C value
 !================================================================
 SUBROUTINE performCalculations(ierr, workA, workB, workC, arayLen, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm, nodeAVal, nodeBVal)
-INTEGER                                            :: arayLen, i, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm, ierr
+INCLUDE 'mpif.h'
+INTEGER                                            :: arayLen, i, r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm, ierr, worldRank
 REAL                                               :: workA, workB, workC, nodeAVal, nodeBVal
 
 workC = 0.0d0
@@ -204,9 +202,11 @@ DO i = 0, arayLen-1
 
 ENDDO
 
-OPEN(UNIT = 11, FILE = "finalMatrix.txt")
-WRITE(11,*) "NODE: ", worldRank, "   VALUE: ", workC
-CLOSE(11)
+CALL MPI_COMM_RANK (MPI_COMM_WORLD, worldRank, ierr)
+
+!OPEN(UNIT = 11, FILE = "finalMatrix.txt")
+WRITE(*,*) "NODE: ", worldRank, "   VALUE: ", nodeAVal 
+!CLOSE(11)
 
 END SUBROUTINE performCalculations
 
