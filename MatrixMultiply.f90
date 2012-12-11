@@ -14,7 +14,7 @@ INTEGER                                 :: ierr, commSize, worldRank
 INTEGER                                 :: r1Comm, r2Comm, r3Comm, c1Comm, c2Comm, c3Comm !MPI variables
 REAL, ALLOCATABLE, DIMENSION(:,:)       :: arayA, arayB, arayC                            !Matrices
 REAL                                    :: nodeAVal, nodeBVal, workA, workB, workC
-INTEGER, PARAMETER                      :: arayLen = 3 !Size of matrices to be multiplied (arayLen x arayLen)
+INTEGER                                 :: arayLen !Size of matrices to be multiplied (arayLen x arayLen)
 
 !Initialize MPI Environment
 CALL MPI_INIT(ierr)
@@ -23,6 +23,8 @@ CALL MPI_COMM_RANK (MPI_COMM_WORLD, worldRank, ierr)
 
 !Allocates arrays
 IF (worldRank .EQ. 0) THEN
+
+    READ(*,*) arayLen
 
     ALLOCATE(arayA(arayLen, arayLen))
     ALLOCATE(arayB(arayLen, arayLen))
